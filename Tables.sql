@@ -1,5 +1,4 @@
-﻿
-create table Users(
+﻿create table Users(
 	userid int primary key IDENTITY ,
 	Username varchar(20),
 	Passwordd varchar(10),

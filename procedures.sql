@@ -35,12 +35,13 @@ END
 /*  1.a)  */
 go
 
-create proc UserRegister @usertype varchar(20), @userName varchar(20), @email varchar(50),
-@first_name varchar(20), @last_name varchar(20), @birth_date datetime, @GPA decimal(3,2), 
-@semester int, @address varchar(100), @faculty_code varchar(10), @major_code varchar(10), 
-@company_name varchar(20), @representative_name varchar(20), @representative_email varchar(50),
-@phone_number varchar(20), @country_of_residence varchar(20),
-@userid int output,@passwordd varchar(10) output
+create proc UserRegister @usertype varchar(20), @userName varchar(20),
+@email varchar(50),@first_name varchar(20), @last_name varchar(20),
+@birth_date datetime = '1753, 1, 1, 12, 0, 0', @GPA decimal(3,2), @semester int,
+@adress varchar(100), @faculty_code varchar(10), @major_code varchar(10),
+@company_name varchar(20), @representative_name varchar(20),
+@representative_email varchar(50),@phone_number varchar(20),
+@country_of_residence varchar(20),@userid int output,@passwordd varchar(10) output
 as
 exec GENERATEPWD @passwordd output 
 INSERT into users (Username, Passwordd, Email ,phone_number)
@@ -51,20 +52,21 @@ begin
 if (@usertype = 'Student') 
 begin
 insert into Student (s_id, first_name, last_name, Major_code, Date_Of_Birth,
-age, Address, Semester, GPA, TotalBachelorGrade, Assigned_Project_code)
-VALUES (@userid,@first_name, @last_name, @major_code, @birth_date, @address, 
+Adress, Semester, GPA, TotalBachelorGrade, Assigned_Project_code)
+VALUES (@userid,@first_name, @last_name, @major_code, @birth_date, @adress, 
 @semester, @GPA, 0.0,@major_code)
 END
 
 if (@usertype = 'Company') 
 begin
-INSERT into Company (Company_id ,Company_Name, Representative_name ,Representative_Email, Locationn)
+INSERT into Company (Company_id ,Company_Name, Representative_name ,
+Representative_Email, Locationn)
 VALUES (@userid, @company_name, @Representative_name, @Representative_Email, @country_of_residence)
 End
 
 if (@usertype = 'Lecturer')
 begin
-insert into Lecturer (Lecturer_id )
+insert into Lecturer (Lecturer_id)
 VALUES (@userid)
 end
 
@@ -84,36 +86,67 @@ insert into External_Examiner (EE_id)
 
 --2.a)
 go
-CREATE proc UserLogin @email varchar(50), @passwordd varchar(10), @success bit output, @userid int OUTPUT
- as
+CREATE PROCEDURE UserLogin
+(
+   @email varchar(50),
+   @password varchar(10),
+   @success bit OUTPUT,
+   @user_id int OUTPUT
+)
+AS
+BEGIN
+   SET @success = 0
+   SET @user_id = -1
 
-    IF NOT EXISTS (Select * From Users Where Email=@Email and Passwordd = @Passwordd)
-           begin
-		   SET @userid = -1
-            SET @success = 1
-			end
-    IF EXISTS (Select * From Users Where Email=@Email and Passwordd = @Passwordd) --check/
-         begin
-		 SET @userid = User.userid
-			SET @success = 0
-			end
-
+   IF exists(SELECT *
+   FROM users
+   WHERE Email = @email AND Passwordd = @password)
+   BEGIN
+      SET @success = 1
+   END
+END
 
 go
-create proc ViewProfile @userid int
+CREATE proc ViewProfile
+(
+   @user_id int
+)
 AS
-Select * from users where Users.userid = @userid
-
+BEGIN
+   SELECT * FROM users WHERE id = @user_id
+END
+go
 --  2.c)  
-go
-create proc ViewBachelorProjects @ProjectType varchar(20), @userid int
+CREATE PROCEDURE ViewBachelorProjects
+(
+    @ProjectType varchar(20),
+    @User_id int
+)
 AS
-if (@ProjectType = Bachelor_Project.Namee and @userid = user.userid) select Description from Bachelor_Project where 
-@ProjectType = Bachelor_Project.Namee and @userid = users.userid
- 
-if (@ProjectType is null and @userid = null) select Description from Bachelor_Project
+BEGIN
+    -- create a variable to store the WHERE clause of the query
+    DECLARE @whereClause AS varchar(500) = ''
 
-if(@ProjectType is null and @userid != null) select Description from Bachelor_Project where @userid = users.userid
+    -- check if @ProjectType is not NULL
+    IF @ProjectType IS NOT NULL
+    BEGIN
+        -- add @ProjectType filter to WHERE clause
+        SET @whereClause = @whereClause + 'AND p.type = ''' + @ProjectType + ''' '
+    END
+
+    -- check if @User_id is not NULL
+    IF @User_id IS NOT NULL
+    BEGIN
+        -- add @User_id filter to WHERE clause
+        SET @whereClause = @whereClause + 'AND p.user_id = ' + CAST(@User_id AS varchar(20)) + ' '
+    END
+
+    -- select bachelor projects
+    SELECT p.* FROM BachelorProjects p
+    WHERE 1 = 1 -- always true, used to make it easier to add filters to WHERE clause
+    + @whereClause -- add filters to WHERE clause
+END
+
 
 
 -- point 3
@@ -335,74 +368,111 @@ end
 go
 
 	-- 4.a
-	  
-	  create proc AddEmployee  @Company_id int, @Email varchar(50), @Username varchar(20) , @Phone varchar(20),
-@field varchar(25) ,@Passwordd varchar(10)
+	-- AddEmployee stored procedure
+CREATE PROCEDURE AddEmployee
+(
+    @CompanyID int,
+    @email varchar(50),
+    @name varchar(20),
+    @phone_number varchar(20),
+    @field varchar(25),
+    @StaffID int OUTPUT,
+    @password varchar(10) OUTPUT
+)
+AS
+BEGIN
+    -- insert employee into table
+    INSERT INTO Employees (CompanyID, email, name, phone_number, field)
+    VALUES (@CompanyID, @email, @name, @phone_number, @field)
 
-	as begin 
-	insert into Employee(
-	Company_id,
-	Email,
-	Username,
-	Phone,
-	field,
-	Passwordd)
-	values(
-	@Company_id,
-	@Email,
-	@Username,
-	@Phone,
-	@field,
-	@Passwordd)
-
-	
-
-	end
-	--4.b
-	go
-	create proc CompanyCreateLocalProject 
-@Company_ID int,@proj_code varchar(10), @title varchar(50), @description varchar(200), @major_code varchar(10)
-as
-begin
-insert into Bachelor_Project (proj_code, title, description)
- VALUES (@proj_code , @title , @description)
-insert into company(company_id) /*lecturer or academic ?*/
-VALUES (@company_id)
-
-insert into MajorHasBachelorProject(major_code)
-VALUES (@major_code)
-
- 
-end
-	go
-	--4.d
-
-create proc CompanyGradeThesis
-@Company_id int, @s_id int, @thesis_title varchar(50), @Company_grade Decimal(4,2)
-
-as
-begin
- insert into CompanyGradeThesis values(null ,  @Company_id  , @s_id ,@thesis_title , @Company_grade  , null)
- end
- go
---4.e
-Create proc CompanyGradedefense
-@Company_id int, @s_id int, @defense_location varchar(5), @Company_grade Decimal
-as
-begin
- insert into CompanyGradedefense values(null ,  @Company_id  , @s_id  , @Company_grade  , null)
- end
---4.f
+    -- set output variables
+    SELECT @StaffID = SCOPE_IDENTITY(), @password = CONVERT(varchar(10), NEWID())
+END
 go
-Create proc CompanyGradePR
-@Company_id int, @s_id int, @datee datetime, @Company_grade decimal
-as
-begin
-select totalbachelorgrade from student
- Where bachelor_projects = industrial
+-- CompanyCreateLocalProject stored procedure
+CREATE PROCEDURE CompanyCreateLocalProject
+(
+    @company_id int,
+    @proj_code varchar(10),
+    @title varchar(50),
+    @description varchar(200),
+    @major_code varchar(10)
+)
+AS
+BEGIN
+    -- insert project into table
+    INSERT INTO Projects (company_id, proj_code, title, description, major_code)
+    VALUES (@company_id, @proj_code, @title, @description, @major_code)
+END
+go
+-- AssignEmployee stored procedure
+CREATE PROCEDURE AssignEmployee
+(
+    @bachelor_code varchar(10),
+    @staff_id int,
+    @Company_id int,
+    @staff_id int OUTPUT
+)
+AS
+BEGIN
+    -- update bachelor project with employee assignment
+    UPDATE BachelorProjects
+    SET staff_id = @staff_id
+    WHERE bachelor_code = @bachelor_code AND Company_id = @Company_id
 
- insert into CompanyGradePR  values(null , @Company_id  , @s_id , @Company_grade,@date  , null )
-end
+    -- set output variable
+    SELECT @staff_id = @staff_id
+END
+go
+-- CompanyGradeThesis stored procedure
+CREATE PROCEDURE CompanyGradeThesis
+(
+    @Company_id int,
+    @sid int,
+    @thesis_title varchar(50),
+    @Company_grade Decimal(4,2)
+)
+AS
+BEGIN
+    -- update thesis with company grade
+    UPDATE Thesis
+    SET Company_grade = @Company_grade
+    WHERE Company_id = @Company_id AND sid = @sid AND thesis_title = @thesis_title
+END
+go
+-- CompanyGradedefense stored procedure
+CREATE PROCEDURE CompanyGradedefense
+(
+    @Company_id int,
+    @sid int,
+    @defense_location varchar(5),
+    @Company_grade Decimal(4,2)
+)
+AS
+BEGIN
+    -- update defense with company grade
+    UPDATE Defenses
+    SET Company_grade = @Company_grade
+    WHERE Company_id = @Company_id AND sid = @sid AND defense_location = @defense_location
+END
+go
+-- CompanyGradePR stored procedure
+CREATE PROCEDURE CompanyGradePR
+(
+    @Company_id int,
+    @sid int,
+    @date datetime,
+    @Company_grade decimal(4,2)
+)
+AS
+BEGIN
+    -- update progress report with company grade
+    UPDATE ProgressReports
+    SET Company_grade = @Company_grade
+    WHERE Company_id = @Company_id AND sid = @sid AND date = @date
+END
+
+
 
 --/5.a/
 go
@@ -412,7 +482,7 @@ create proc LecturerCreateLocalProject @Lecturer_id int,
 as
 begin
 
-insert into Bachelor_Project (proj_code, title, description)
+insert into Bachelor_Project (Code, Namee, Descriptions)
  VALUES (@proj_code , @title , @description)
 
 insert into Lecturer (Lecturer_id) /*lecturer or academic ?*/
@@ -432,7 +502,7 @@ create proc LecturerCreateLocalProject @Lecturer_id int,
 as
 begin
 
-insert into Bachelor_Project (proj_code, title, description)
+insert into Bachelor_Project (Code, Namee, Descriptions)
  VALUES(@proj_code , @title , @description)
 
 insert into academic(L_id) 
@@ -451,7 +521,7 @@ create proc CreateMeeting
 @Lecturer_id int, @start_time time, @end_time time, @datee datetime, @meeting_point varchar(5)
 as
 begin
-insert into Meeting (L_id, start_time, end_time, datee, meeting_point)
+insert into Meeting (L_id, STime, ETime, datee, meeting_point)
 VALUES
 (@Lecturer_id, @start_time, @end_time, @datee, @meeting_point)
 end
@@ -473,16 +543,16 @@ create proc ViewMeetingLecturer
 as 
 begin
 if(@meeting_id is not null)
-select meeting_id
+select *
 from meeting
-where meeting_id=@meeting_id and Lecturer_id=@Lecturer_id
+where Meeting_ID=@meeting_id and L_id=@Lecturer_id
 end
 
 if(@meeting_id is null)
 begin
-select meeting_id
+select *
 from meeting
-where Lecturer_id=@Lecturer_id
+where L_id=@Lecturer_id
 order by datee
 end 
 
@@ -550,7 +620,8 @@ go
 @Lecturer_grade Decimal(4,2)
 as
 if exists (select s_id from GradeAcademicDefense where @s_id = s_id)
-update GradeAcademicDefense set Lecturer_grade = @Lecturer_grade , L_id = @Lecturer_id where s_id = s_id and @defense_location = [Location]
+update GradeAcademicDefense set Lecturer_grade = @Lecturer_grade ,
+L_id = @Lecturer_id where s_id = s_id and @defense_location = Locationn
 else insert into GradeAcademicDefense (L_id , s_id , Locationn , Lecturer_grade)
 Values (@Lecturer_id , @s_id , @defense_location , @Lecturer_grade)
 
@@ -673,22 +744,24 @@ select *
 from Teaching_Assistant
 
 end
-
---/8b/
 go
-create proc AssignAllStudentsToLocalProject
-as begin
- if exists ( select s.s_id
-     from StudentPreferences s
-     right outer join Academic a on s.PCode = a.Academic_code
-     group by s.s_id)
-	
- if exists (select s.s_id
-     from StudentPreferences s
-     right outer join Industrial i on s.PCode = i.Industrial_code
-     group by s.s_id )
-	 
-	 end
+--/8b/
+CREATE PROCEDURE AssignAllStudentsToLocalProject
+AS
+BEGIN
+    -- insert student-project assignments into table
+    INSERT INTO StudentProjectAssignments (sid, proj_code)
+    SELECT sid, proj_code
+    FROM Students s
+    INNER JOIN Projects p
+    ON s.preference_1 = p.proj_code OR s.preference_2 = p.proj_code OR s.preference_3 = p.proj_code
+    WHERE s.GPA >= p.min_GPA
+    ORDER BY s.GPA DESC
+
+    -- select student-project assignments
+    SELECT sid, proj_code FROM StudentProjectAssignments
+END
+
 --/8c/
 go
  
@@ -781,6 +854,7 @@ defense_location , Employee_grade)
 @defense_location , @Employee_grade
  )
  end
+
  go
 create proc EmployeeCreatePR
 @Employee_id int, 
